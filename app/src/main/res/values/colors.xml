@@ -2,6 +2,6 @@
 <resources>
     <color name="primary">#FF1976D2</color>
     <color name="bg">#FFFFFFFF</color>
-    <color name="text">#FF000000</color> <!-- Pure black for maximum clarity -->
-    <color name="hint">#FF888888</color> <!-- Dark gray for hints -->
+    <color name="text">#FF000000</color>
+    <color name="hint">#FF888888</color>
 </resources>
