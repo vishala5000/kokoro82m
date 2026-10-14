@@ -1,1 +1,3 @@
-
+-keep class ai.onnxruntime.** { *; }
+-keep class com.example.kokorotts.** { *; }
+-dontwarn ai.onnxruntime.**
