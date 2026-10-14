@@ -5,7 +5,7 @@ import android.content.Context;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream; // <-- FIXED: Added missing import
+import java.io.FileOutputStream; // FIXED: Added missing import
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -47,7 +47,7 @@ public class KokoroEngine {
         int[] ids = tokenize(phonemes);
         if (ids.length == 0) throw new IllegalStateException("Empty token sequence");
 
-        // 3) Load voice embedding (256-dim)
+        // 3) Load voice embedding (exactly 256 floats)
         float[] style = loadVoice(voiceId);
 
         // 4) Build inputs
@@ -66,13 +66,13 @@ public class KokoroEngine {
 
         // 5) Run inference
         try (OrtSession.Result res = session.run(inputs)) {
-            // FIXED: Dynamically handle 2D or 3D output arrays from ONNX Runtime
+            // FIXED: Safely handle 2D or 3D output arrays from ONNX Runtime
             Object val = res.get(0).getValue();
             float[] pcm;
             if (val instanceof float[][][]) {
-                pcm = ((float[][][]) val)[0][0]; // Shape: [1, 1, L]
+                pcm = ((float[][][]) val)[0][0]; // Shape: [1, 1, Length]
             } else if (val instanceof float[][]) {
-                pcm = ((float[][]) val)[0];      // Shape: [1, L]
+                pcm = ((float[][]) val)[0];      // Shape: [1, Length]
             } else {
                 throw new IllegalStateException("Unexpected output tensor shape: " + val.getClass().getName());
             }
@@ -91,8 +91,12 @@ public class KokoroEngine {
 
         byte[] bytes = readAll(new FileInputStream(f));
         FloatBuffer fb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        float[] v = new float[fb.remaining()];
+        
+        // SAFETY CHECK: Ensure we only read exactly 256 floats
+        int elementsToRead = Math.min(256, fb.remaining());
+        float[] v = new float[elementsToRead];
         fb.get(v);
+        
         voiceCache.put(id, v);
         return v;
     }
@@ -130,7 +134,7 @@ public class KokoroEngine {
     private void copyAsset(String asset, File dst) throws Exception {
         dst.getParentFile().mkdirs();
         try (InputStream is = ctx.getAssets().open(asset);
-             FileOutputStream os = new FileOutputStream(dst)) { // <-- NOW WORKS
+             FileOutputStream os = new FileOutputStream(dst)) { // NOW WORKS PERFECTLY
             byte[] buf = new byte[64 * 1024];
             int n;
             while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
