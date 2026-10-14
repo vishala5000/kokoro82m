@@ -1,1 +1,5 @@
-
+<resources>
+    <style name="Theme.KokoroTTS" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+    </style>
+</resources>
