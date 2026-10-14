@@ -22,34 +22,15 @@ public class KokoroEngine {
 
     private final OrtEnvironment env = OrtEnvironment.getEnvironment();
     private final OrtSession session;
+    private final KokoroTokenizer tokenizer;
     private final Map<String, float[]> voiceCache = new HashMap<>();
     private final Context ctx;
-    
-    // FIXED: Correct Kokoro-82M vocabulary (no typos)
-    private static final String KOKORO_VOCAB = 
-        "<pad><unk>_" +
-        "!\"#$%&'()*+,-./0123456789:;<=>?@" +
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-        "[\\]^_`abcdefghijklmnopqrstuvwxyz" +
-        "{|}~" +
-        "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴ" +
-        "øɵɸɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑ" +
-        "ᴀʙƀƁƂƃɓɕʗʖ" +
-        "ʰʱʷʲʴʵʶˠˡˢˣˤᵻᵿ";
-
-    private static final Map<Character, Long> VOCAB_MAP = new HashMap<>();
-    
-    static {
-        int idx = 0;
-        for (int i = 0; i < KOKORO_VOCAB.length(); ) {
-            int cp = KOKORO_VOCAB.codePointAt(i);
-            VOCAB_MAP.put((char) cp, (long) idx++);
-            i += Character.charCount(cp);
-        }
-    }
 
     public KokoroEngine(Context ctx) throws Exception {
         this.ctx = ctx.getApplicationContext();
+
+        // Initialize real BPE tokenizer
+        tokenizer = new KokoroTokenizer(ctx);
 
         OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
         opts.setIntraOpNumThreads(Math.max(2, Runtime.getRuntime().availableProcessors()));
@@ -63,12 +44,17 @@ public class KokoroEngine {
     }
 
     public float[] synthesize(String text, String voiceId, String langCode, float speed) throws Exception {
+        // 1) Phonemize text to IPA
         String phonemes = Phonemizer.phonemize(text, langCode);
-        long[] ids = tokenize(phonemes);
+
+        // 2) Tokenize with real BPE tokenizer (produces exact IDs model expects)
+        long[] ids = tokenizer.encode(phonemes);
         if (ids.length == 0) throw new IllegalStateException("Empty token sequence");
 
+        // 3) Load voice embedding (exactly 256 floats)
         float[] style = loadVoice(voiceId);
 
+        // 4) Build ONNX inputs
         long[] idsShape = {1, ids.length};
         long[] styleShape = {1, 256};
         long[] speedShape = {1};
@@ -82,6 +68,7 @@ public class KokoroEngine {
         inputs.put("style",     tStyle);
         inputs.put("speed",     tSpeed);
 
+        // 5) Run inference
         try (OrtSession.Result res = session.run(inputs)) {
             Object val = res.get(0).getValue();
             float[] pcm;
@@ -94,8 +81,8 @@ public class KokoroEngine {
             }
             return pcm;
         } finally {
-            tIds.close(); 
-            tStyle.close(); 
+            tIds.close();
+            tStyle.close();
             tSpeed.close();
         }
     }
@@ -113,15 +100,6 @@ public class KokoroEngine {
         
         voiceCache.put(id, v);
         return v;
-    }
-
-    private long[] tokenize(String phonemes) {
-        long[] out = new long[phonemes.length()];
-        for (int i = 0; i < phonemes.length(); i++) {
-            char c = phonemes.charAt(i);
-            out[i] = VOCAB_MAP.getOrDefault(c, 1L);
-        }
-        return out;
     }
 
     private void copyAsset(String asset, File dst) throws Exception {
