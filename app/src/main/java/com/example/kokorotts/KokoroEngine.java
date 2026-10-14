@@ -23,35 +23,14 @@ public class KokoroEngine {
 
     private final OrtEnvironment env = OrtEnvironment.getEnvironment();
     private final OrtSession session;
+    private final KokoroTokenizer tokenizer;
     private final Map<String, float[]> voiceCache = new HashMap<>();
     private final Context ctx;
-    
-    // EXACT Kokoro-82M vocabulary order
-    private static final String VOCAB = 
-        "<pad><unk>_" +
-        "!\"#$%&'()*+,-./0123456789:;<=>?@" +
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-        "[\\]^_`abcdefghijklmnopqrstuvwxyz" +
-        "{|}~" +
-        "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴ" +
-        "øɵɸɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑ" +
-        "ᴀʙƀƁƂƃɓɕʗʖ" +
-        "ʰʱʷʲʴʵʶˠˡˢˣˤᵻᵿ";
-
-    private static final Map<Character, Long> VOCAB_MAP = new HashMap<>();
-    
-    static {
-        int idx = 0;
-        for (int i = 0; i < VOCAB.length(); ) {
-            int cp = VOCAB.codePointAt(i);
-            VOCAB_MAP.put((char) cp, (long) idx++);
-            i += Character.charCount(cp);
-        }
-        Log.d("KokoroTTS", "Vocab loaded, size: " + VOCAB_MAP.size());
-    }
 
     public KokoroEngine(Context ctx) throws Exception {
         this.ctx = ctx.getApplicationContext();
+
+        tokenizer = new KokoroTokenizer(ctx);
 
         OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
         opts.setIntraOpNumThreads(Math.max(2, Runtime.getRuntime().availableProcessors()));
@@ -62,20 +41,21 @@ public class KokoroEngine {
         if (!model.exists()) copyAsset("kokoro/model.onnx", model);
 
         session = env.createSession(model.getAbsolutePath(), opts);
-        Log.d("KokoroTTS", "Model loaded successfully");
+        Log.d("KokoroTTS", "Kokoro engine initialized successfully");
     }
 
     public float[] synthesize(String text, String voiceId, String langCode, float speed) throws Exception {
-        // 1) Phonemize to space-separated IPA
+        // 1) Phonemize
         String phonemes = Phonemizer.phonemize(text, langCode);
         Log.d("KokoroTTS", "Phonemes: " + phonemes);
 
-        // 2) Tokenize: split by space, map each token to ID
-        long[] ids = tokenize(phonemes);
+        // 2) Tokenize with real Kokoro tokenizer
+        long[] ids = tokenizer.encode(phonemes);
         if (ids.length == 0) throw new IllegalStateException("Empty token sequence");
+        Log.d("KokoroTTS", "Token count: " + ids.length);
 
-        // 3) Load voice embedding
-        float[] style = loadVoice(voiceId);
+        // 3) Load voice embedding (row selected by input length for perfect quality)
+        float[] style = loadVoice(voiceId, ids.length);
 
         // 4) Build ONNX inputs
         long[] idsShape = {1, ids.length};
@@ -100,7 +80,7 @@ public class KokoroEngine {
             } else if (val instanceof float[][]) {
                 pcm = ((float[][]) val)[0];
             } else {
-                throw new IllegalStateException("Unexpected output tensor shape: " + val.getClass().getName());
+                throw new IllegalStateException("Unexpected output shape: " + val.getClass().getName());
             }
             return pcm;
         } finally {
@@ -110,52 +90,31 @@ public class KokoroEngine {
         }
     }
 
-    private long[] tokenize(String phonemes) {
-        String[] tokens = phonemes.split("\\s+");
-        long[] ids = new long[tokens.length];
-        for (int i = 0; i < tokens.length; i++) {
-            String token = tokens[i];
-            if (token.length() == 1) {
-                ids[i] = VOCAB_MAP.getOrDefault(token.charAt(0), 1L);
-            } else {
-                ids[i] = mapMultiChar(token);
-            }
-        }
-        return ids;
-    }
+    /**
+     * Load voice embedding. Kokoro voices are [510, 256] matrices.
+     * We pick the row matching the input sequence length for best quality.
+     */
+    private synchronized float[] loadVoice(String id, int sequenceLength) throws Exception {
+        String cacheKey = id + "_" + sequenceLength;
+        if (voiceCache.containsKey(cacheKey)) return voiceCache.get(cacheKey);
 
-    private long mapMultiChar(String token) {
-        if (token.equals("ʧ")) return VOCAB_MAP.getOrDefault('ʧ', 1L);
-        if (token.equals("ʤ")) return VOCAB_MAP.getOrDefault('ʤ', 1L);
-        if (token.equals("kʰ")) return VOCAB_MAP.getOrDefault('k', 1L);
-        if (token.equals("ɡʱ")) return VOCAB_MAP.getOrDefault('ɡ', 1L);
-        if (token.equals("t̪ʰ")) return VOCAB_MAP.getOrDefault('t', 1L);
-        if (token.equals("d̪ʱ")) return VOCAB_MAP.getOrDefault('d', 1L);
-        if (token.equals("t̪")) return VOCAB_MAP.getOrDefault('t', 1L);
-        if (token.equals("d̪")) return VOCAB_MAP.getOrDefault('d', 1L);
-        if (token.equals("ʧʰ")) return VOCAB_MAP.getOrDefault('ʧ', 1L);
-        if (token.equals("ʤʱ")) return VOCAB_MAP.getOrDefault('ʤ', 1L);
-        if (token.equals("ʈʰ")) return VOCAB_MAP.getOrDefault('ʈ', 1L);
-        if (token.equals("ɖʱ")) return VOCAB_MAP.getOrDefault('ɖ', 1L);
-        if (token.equals("pʰ")) return VOCAB_MAP.getOrDefault('p', 1L);
-        if (token.equals("bʱ")) return VOCAB_MAP.getOrDefault('b', 1L);
-        
-        return VOCAB_MAP.getOrDefault(token.charAt(0), 1L);
-    }
-
-    private synchronized float[] loadVoice(String id) throws Exception {
-        if (voiceCache.containsKey(id)) return voiceCache.get(id);
         File f = new File(ctx.getFilesDir(), "kokoro/voices/" + id + ".bin");
         if (!f.exists()) copyAsset("kokoro/voices/" + id + ".bin", f);
 
         byte[] bytes = readAll(new FileInputStream(f));
         FloatBuffer fb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        
-        float[] v = new float[256];
-        fb.get(v);
-        
-        voiceCache.put(id, v);
-        return v;
+
+        // Pick row matching input length (0-indexed, max 509)
+        int rowIndex = Math.min(Math.max(sequenceLength - 1, 0), 509);
+
+        float[] allVoices = new float[510 * 256];
+        fb.get(allVoices);
+
+        float[] style = new float[256];
+        System.arraycopy(allVoices, rowIndex * 256, style, 0, 256);
+
+        voiceCache.put(cacheKey, style);
+        return style;
     }
 
     private void copyAsset(String asset, File dst) throws Exception {
