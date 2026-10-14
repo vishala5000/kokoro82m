@@ -26,15 +26,21 @@ echo "✓ Downloaded am_adam.bin"
 curl -L -f -o "$ASSETS/voices/hm_omega.bin" "${BASE_URL}/hm_omega.bin"
 echo "✓ Downloaded hm_omega.bin"
 
-echo "[*] Downloading tokenizer.json..."
+echo "[*] Downloading tokenizer files..."
 curl -L -f -o "$ASSETS/tokenizer.json" "${BASE_URL}/tokenizer.json"
+echo "✓ Downloaded tokenizer.json"
 
-# Verify the file was downloaded and is not empty (should be ~3.4 KB)
-if [ -f "$ASSETS/tokenizer.json" ] && [ -s "$ASSETS/tokenizer.json" ]; then
-    SIZE=$(wc -c < "$ASSETS/tokenizer.json")
-    echo "✓ Downloaded tokenizer.json ($SIZE bytes)"
-else
+curl -L -f -o "$ASSETS/tokenizer_config.json" "${BASE_URL}/tokenizer_config.json"
+echo "✓ Downloaded tokenizer_config.json"
+
+# Verify files
+if [ ! -s "$ASSETS/tokenizer.json" ]; then
     echo "❌ ERROR: tokenizer.json is missing or empty!"
+    exit 1
+fi
+
+if [ ! -s "$ASSETS/tokenizer_config.json" ]; then
+    echo "❌ ERROR: tokenizer_config.json is missing or empty!"
     exit 1
 fi
 
