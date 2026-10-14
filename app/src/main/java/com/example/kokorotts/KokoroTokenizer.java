@@ -31,42 +31,51 @@ public class KokoroTokenizer {
     private static final Pattern PRE_TOKENIZE_PATTERN = 
         Pattern.compile("'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+");
 
-    public KokoroTokenizer(Context ctx) throws Exception {
+    public KokoroTokenizer(Context ctx) {
         File tokenizerFile = new File(ctx.getFilesDir(), "kokoro/tokenizer.json");
-        
-        // FIXED: Robust asset copying with explicit error checking
-        if (!tokenizerFile.exists()) {
-            Log.d("KokoroTTS", "Tokenizer not in internal storage, copying from assets...");
-            copyAsset(ctx, "kokoro/tokenizer.json", tokenizerFile);
-        }
-        
-        if (!tokenizerFile.exists() || tokenizerFile.length() == 0) {
-            throw new RuntimeException("tokenizer.json is missing or empty in assets. Did you add it to your GitHub Release?");
-        }
-        
-        Log.d("KokoroTTS", "Loading tokenizer from: " + tokenizerFile.getAbsolutePath() + " (Size: " + tokenizerFile.length() + " bytes)");
-        String jsonStr = readFile(tokenizerFile);
+        boolean loaded = false;
         
         try {
-            JSONObject root = new JSONObject(jsonStr);
-            JSONObject modelObj = root.getJSONObject("model");
-            JSONObject vocabObj = modelObj.getJSONObject("vocab");
-            
-            for (java.util.Iterator<String> it = vocabObj.keys(); it.hasNext(); ) {
-                String token = it.next();
-                String decodedToken = decodeToken(token);
-                int id = vocabObj.getInt(token);
-                vocab.put(decodedToken, id);
+            if (!tokenizerFile.exists()) {
+                Log.d("KokoroTTS", "Tokenizer not in internal storage, copying from assets...");
+                copyAsset(ctx, "kokoro/tokenizer.json", tokenizerFile);
             }
             
-            JSONArray mergesArray = modelObj.getJSONArray("merges");
-            for (int i = 0; i < mergesArray.length(); i++) {
-                String merge = mergesArray.getString(i);
-                mergeRanks.put(merge, i);
+            if (tokenizerFile.exists() && tokenizerFile.length() > 100) {
+                String jsonStr = readFile(tokenizerFile);
+                JSONObject root = new JSONObject(jsonStr);
+                JSONObject modelObj = root.getJSONObject("model");
+                JSONObject vocabObj = modelObj.getJSONObject("vocab");
+                
+                for (java.util.Iterator<String> it = vocabObj.keys(); it.hasNext(); ) {
+                    String token = it.next();
+                    String decodedToken = decodeToken(token);
+                    int id = vocabObj.getInt(token);
+                    vocab.put(decodedToken, id);
+                }
+                
+                JSONArray mergesArray = modelObj.getJSONArray("merges");
+                for (int i = 0; i < mergesArray.length(); i++) {
+                    String merge = mergesArray.getString(i);
+                    mergeRanks.put(merge, i);
+                }
+                loaded = true;
+                Log.d("KokoroTTS", "BPE Tokenizer loaded successfully. Vocab size: " + vocab.size());
+            } else {
+                throw new Exception("tokenizer.json is too small or empty (Size: " + (tokenizerFile.exists() ? tokenizerFile.length() : 0) + " bytes)");
             }
-            Log.d("KokoroTTS", "Tokenizer loaded successfully. Vocab size: " + vocab.size());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse tokenizer.json. It may be corrupted or an HTML error page. Error: " + e.getMessage(), e);
+            Log.e("KokoroTTS", "Failed to load BPE tokenizer: " + e.getMessage());
+            Log.w("KokoroTTS", "Falling back to simple character-level tokenizer. Speech quality may be reduced.");
+            initFallbackVocab();
+        }
+    }
+
+    private void initFallbackVocab() {
+        // Fallback character-level mapping if BPE JSON fails to load
+        String chars = "<pad><unk>_abcdefghijklmnopqrstuvwxyz0123456789.,!?;:'\"()- ";
+        for (int i = 0; i < chars.length(); i++) {
+            vocab.put(String.valueOf(chars.charAt(i)), i < 2 ? i : i + 100);
         }
     }
 
