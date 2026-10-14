@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
+# Your exact GitHub release details
 GITHUB_USER="vishala5000"
 GITHUB_REPO="kokoro82m"
 RELEASE_TAG="kokoro"
@@ -19,27 +20,27 @@ else
     exit 1
 fi
 
-echo "[*] Installing PyTorch (CPU) for voice conversion..."
+echo "[*] Installing lightweight PyTorch for voice conversion..."
 pip install torch --index-url https://download.pytorch.org/whl/cpu -q
 
-echo "[*] Downloading and converting am_adam voice..."
+echo "[*] Converting am_adam voice to raw 256-float binary..."
 curl -L -f -o "/tmp/am_adam.pt" "${BASE_URL}/am_adam.bin"
 python3 -c "
 import torch
-data = torch.load('/tmp/am_adam.pt', map_location='cpu')
-if isinstance(data, dict): data = list(data.values())[0]
-data.float().flatten()[:256].numpy().tofile('$ASSETS/voices/am_adam.bin')
-print('✓ Converted am_adam to raw float32 (exactly 256 elements)')
+data = torch.load('/tmp/am_adam.pt', map_location='cpu', weights_only=True)
+if isinstance(data, dict): data = next(iter(data.values()))
+data.float().flatten()[:256].cpu().numpy().tofile('$ASSETS/voices/am_adam.bin')
+print('✓ am_adam converted successfully (exactly 256 floats)')
 "
 
-echo "[*] Downloading and converting hm_omega voice..."
+echo "[*] Converting hm_omega voice to raw 256-float binary..."
 curl -L -f -o "/tmp/hm_omega.pt" "${BASE_URL}/hm_omega.bin"
 python3 -c "
 import torch
-data = torch.load('/tmp/hm_omega.pt', map_location='cpu')
-if isinstance(data, dict): data = list(data.values())[0]
-data.float().flatten()[:256].numpy().tofile('$ASSETS/voices/hm_omega.bin')
-print('✓ Converted hm_omega to raw float32 (exactly 256 elements)')
+data = torch.load('/tmp/hm_omega.pt', map_location='cpu', weights_only=True)
+if isinstance(data, dict): data = next(iter(data.values()))
+data.float().flatten()[:256].cpu().numpy().tofile('$ASSETS/voices/hm_omega.bin')
+print('✓ hm_omega converted successfully (exactly 256 floats)')
 "
 
 echo "[✓] All downloads and conversions complete!"
