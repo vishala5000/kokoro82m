@@ -34,15 +34,12 @@ curl -L -f -o "$ASSETS/tokenizer_config.json" "${BASE_URL}/tokenizer_config.json
 echo "✓ Downloaded tokenizer_config.json"
 
 # Verify files
-if [ ! -s "$ASSETS/tokenizer.json" ]; then
-    echo "❌ ERROR: tokenizer.json is missing or empty!"
-    exit 1
-fi
-
-if [ ! -s "$ASSETS/tokenizer_config.json" ]; then
-    echo "❌ ERROR: tokenizer_config.json is missing or empty!"
-    exit 1
-fi
+for f in tokenizer.json tokenizer_config.json; do
+    if [ ! -s "$ASSETS/$f" ]; then
+        echo "❌ ERROR: $f is missing or empty!"
+        exit 1
+    fi
+done
 
 echo "[✓] All downloads complete!"
 ls -lh "$ASSETS"
