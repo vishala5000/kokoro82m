@@ -63,9 +63,10 @@ public class MainActivity extends AppCompatActivity {
         progress     = findViewById(R.id.progress);
         status       = findViewById(R.id.status);
 
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
-                this, R.array.voices, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        // FIXED: Use custom layouts to guarantee BLACK text in the dropdown
+        ArrayAdapter<CharSequence> adapter = new ArrayAdapter<>(
+                this, R.layout.spinner_item, getResources().getStringArray(R.array.voices));
+        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
         voiceSpinner.setAdapter(adapter);
 
         speedSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -85,9 +86,8 @@ public class MainActivity extends AppCompatActivity {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 engine = new KokoroEngine(getApplicationContext());
-                runOnUiThread(() -> status.setText("Ready. Kokoro 82M Loaded."));
+                runOnUiThread(() -> status.setText("Ready. Tap Generate to speak."));
             } catch (Throwable t) {
-                // FIXED: Print full error details to Logcat and screen
                 Log.e("KokoroTTS", "Init failed", t);
                 String errorMsg = t.getMessage() != null ? t.getMessage() : t.toString();
                 runOnUiThread(() -> status.setText("Init failed: " + errorMsg));
@@ -101,8 +101,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void onGenerate() {
         String text = inputText.getText().toString().trim();
-        if (text.isEmpty()) { toast("Enter some text"); return; }
-        if (engine == null) { toast("Engine still loading or failed"); return; }
+        if (text.isEmpty()) { toast("Please enter some text"); return; }
+        if (engine == null) { toast("Engine still loading"); return; }
 
         int idx = voiceSpinner.getSelectedItemPosition();
         String voiceId = VOICE_IDS[idx];
@@ -126,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
                     btnPlay.setEnabled(true);
                     btnSave.setEnabled(true);
                     status.setText(String.format(
-                        "Done in %d ms — %.2fs audio @ %d Hz",
+                        "✓ Done in %d ms — %.2fs audio @ %d Hz",
                         ms, audio.length / (float)SAMPLE_RATE, SAMPLE_RATE));
                 });
             } catch (Throwable t) {
@@ -182,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
                 byte[] wav = AudioUtils.toWav(lastAudio, SAMPLE_RATE);
                 os.write(wav);
             }
-            toast("Saved: " + out.getAbsolutePath());
+            toast("Saved to: " + out.getAbsolutePath());
         } catch (Throwable t) {
             toast("Save error: " + t.getMessage());
         }
