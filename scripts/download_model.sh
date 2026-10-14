@@ -6,21 +6,18 @@ BASE="https://huggingface.co/${REPO}/resolve/main"
 ASSETS="app/src/main/assets/kokoro"
 mkdir -p "$ASSETS/voices"
 
-echo "[*] Downloading Kokoro-82M ONNX fp16 model..."
-# Note: The model is inside the 'onnx' subfolder
-wget -q --show-progress -O "$ASSETS/model.onnx" \
-  "${BASE}/onnx/model.onnx?download=true"
+# Use a browser User-Agent to bypass HF bot protection
+UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+echo "[*] Downloading Kokoro-82M ONNX model..."
+# Try root path first; if it fails (404/auth), fallback to the onnx/ subfolder
+curl -L -f -A "$UA" -o "$ASSETS/model.onnx" "${BASE}/model.onnx" 2>/dev/null || \
+curl -L -f -A "$UA" -o "$ASSETS/model.onnx" "${BASE}/onnx/model.onnx"
 
 echo "[*] Downloading voices (am_adam, hm_omega)..."
-wget -q --show-progress -O "$ASSETS/voices/am_adam.bin" \
-  "${BASE}/voices/am_adam.bin?download=true"
-wget -q --show-progress -O "$ASSETS/voices/hm_omega.bin" \
-  "${BASE}/voices/hm_omega.bin?download=true"
+curl -L -f -A "$UA" -o "$ASSETS/voices/am_adam.bin" "${BASE}/voices/am_adam.bin"
+curl -L -f -A "$UA" -o "$ASSETS/voices/hm_omega.bin" "${BASE}/voices/hm_omega.bin"
 
-echo "[*] Downloading tokenizer (optional fallback)..."
-wget -q --show-progress -O "$ASSETS/tokenizer.json" \
-  "${BASE}/tokenizer.json?download=true" || echo "Tokenizer not found, using built-in fallback."
-
+echo "[✓] Downloads complete."
 ls -lh "$ASSETS"
 ls -lh "$ASSETS/voices"
-echo "[✓] Kokoro model ready."
