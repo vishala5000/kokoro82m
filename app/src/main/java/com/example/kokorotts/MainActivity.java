@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
         progress     = findViewById(R.id.progress);
         status       = findViewById(R.id.status);
 
-        // FIXED: Use custom layouts to guarantee BLACK text in the dropdown
+        // Custom layouts guarantee BLACK text in dropdown
         ArrayAdapter<CharSequence> adapter = new ArrayAdapter<>(
                 this, R.layout.spinner_item, getResources().getStringArray(R.array.voices));
         adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
