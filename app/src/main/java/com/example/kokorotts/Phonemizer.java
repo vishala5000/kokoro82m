@@ -4,13 +4,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Phonemizer {
-    
+
     private static final Map<String, String> EN_DICT = new HashMap<>();
     private static final Map<String, String> HI_DICT = new HashMap<>();
 
     static {
-        // English - using ONLY characters from Kokoro's vocab
-        // Note: no lowercase 'g' in vocab, use 'ɡ' (U+0261) instead
+        // English words → IPA (only chars in Kokoro vocab: no lowercase 'g', use 'ɡ' U+0261)
         EN_DICT.put("hello", "həloʊ");
         EN_DICT.put("world", "wɜld");
         EN_DICT.put("the", "ðə");
@@ -75,8 +74,8 @@ public class Phonemizer {
         EN_DICT.put("thanks", "θæŋks");
         EN_DICT.put("sorry", "sɒɹi");
         EN_DICT.put("welcome", "wɛlkəm");
-        
-        // Hindi - using ONLY characters from Kokoro's vocab
+
+        // Hindi words → IPA
         HI_DICT.put("नमस्ते", "nəmasteː");
         HI_DICT.put("धन्यवाद", "d̪ʱənjiəʋɑːd̪");
         HI_DICT.put("हाँ", "ɦɑ̃ː");
@@ -90,7 +89,6 @@ public class Phonemizer {
         HI_DICT.put("भारत", "bʱɑːɹət̪");
         HI_DICT.put("हिंदी", "ɦɪnd̪iː");
         HI_DICT.put("अच्छा", "ətʃʰɑː");
-        HI_DICT.put("धन्यवाद", "d̪ʱənjiəʋɑːd̪");
     }
 
     public static String phonemize(String text, String langCode) {
@@ -105,7 +103,7 @@ public class Phonemizer {
         for (int i = 0; i < words.length; i++) {
             String word = words[i].replaceAll("[^a-z']", "");
             if (word.isEmpty()) continue;
-            
+
             String ipa = EN_DICT.get(word);
             if (ipa != null) {
                 result.append(ipa);
@@ -122,14 +120,13 @@ public class Phonemizer {
         for (int i = 0; i < word.length(); i++) {
             char c = word.charAt(i);
             char next = (i + 1 < word.length()) ? word.charAt(i + 1) : ' ';
-            
-            // Map to IPA using ONLY characters in Kokoro's vocab
+
             if (c == 'a') ipa.append(next == 'i' ? "eɪ" : (next == 'u' ? "ɔː" : "æ"));
             else if (c == 'e') ipa.append((next == 'a' || next == 'i') ? "iː" : (i == word.length() - 1 ? "" : "ɛ"));
             else if (c == 'i') ipa.append(next == 'e' ? "aɪ" : "ɪ");
             else if (c == 'o') ipa.append(next == 'e' ? "oʊ" : "ɒ");
             else if (c == 'u') ipa.append(next == 'e' ? "juː" : "ʌ");
-            else if (c == 'g') ipa.append("ɡ");  // Use U+0261 (ɡ), NOT lowercase g
+            else if (c == 'g') ipa.append("ɡ");  // U+0261, NOT ASCII g
             else if (c == 't' && next == 'h') { ipa.append("θ"); i++; }
             else if (c == 's' && next == 'h') { ipa.append("ʃ"); i++; }
             else if (c == 'c' && next == 'h') { ipa.append("ʧ"); i++; }
@@ -150,7 +147,7 @@ public class Phonemizer {
         for (int i = 0; i < words.length; i++) {
             String word = words[i].replaceAll("[^\\u0900-\\u097F]", "");
             if (word.isEmpty()) continue;
-            
+
             String ipa = HI_DICT.get(word);
             if (ipa != null) {
                 result.append(ipa);
@@ -166,7 +163,6 @@ public class Phonemizer {
         StringBuilder ipa = new StringBuilder();
         for (int i = 0; i < word.length(); i++) {
             char c = word.charAt(i);
-            // Map Devanagari to IPA using ONLY characters in Kokoro's vocab
             if (c == 'अ') ipa.append("ə");
             else if (c == 'आ' || c == 'ा') ipa.append("ɑː");
             else if (c == 'इ' || c == 'ि') ipa.append("ɪ");
@@ -179,7 +175,7 @@ public class Phonemizer {
             else if (c == 'औ' || c == 'ौ') ipa.append("ɔː");
             else if (c == 'क') ipa.append("k");
             else if (c == 'ख') ipa.append("kʰ");
-            else if (c == 'ग') ipa.append("ɡ");  // U+0261, not ASCII g
+            else if (c == 'ग') ipa.append("ɡ");
             else if (c == 'घ') ipa.append("ɡʰ");
             else if (c == 'ङ') ipa.append("ŋ");
             else if (c == 'च') ipa.append("ʧ");
@@ -213,7 +209,6 @@ public class Phonemizer {
             else if (c == 'ं') ipa.append("̃");
             else if (c == 'ः') ipa.append("h");
             else if (c == '्') {
-                // Halant: suppress inherent vowel
                 int len = ipa.length();
                 if (len > 0 && ipa.charAt(len - 1) == 'ə') {
                     ipa.deleteCharAt(len - 1);
