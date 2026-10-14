@@ -8,6 +8,7 @@ import android.media.AudioTrack;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -67,7 +68,6 @@ public class MainActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         voiceSpinner.setAdapter(adapter);
 
-        // Speed slider logic
         speedSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -85,9 +85,12 @@ public class MainActivity extends AppCompatActivity {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 engine = new KokoroEngine(getApplicationContext());
-                runOnUiThread(() -> status.setText("Ready."));
+                runOnUiThread(() -> status.setText("Ready. Kokoro 82M Loaded."));
             } catch (Throwable t) {
-                runOnUiThread(() -> status.setText("Init failed: " + t.getMessage()));
+                // FIXED: Print full error details to Logcat and screen
+                Log.e("KokoroTTS", "Init failed", t);
+                String errorMsg = t.getMessage() != null ? t.getMessage() : t.toString();
+                runOnUiThread(() -> status.setText("Init failed: " + errorMsg));
             }
         });
 
@@ -99,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
     private void onGenerate() {
         String text = inputText.getText().toString().trim();
         if (text.isEmpty()) { toast("Enter some text"); return; }
-        if (engine == null) { toast("Engine still loading"); return; }
+        if (engine == null) { toast("Engine still loading or failed"); return; }
 
         int idx = voiceSpinner.getSelectedItemPosition();
         String voiceId = VOICE_IDS[idx];
@@ -127,6 +130,7 @@ public class MainActivity extends AppCompatActivity {
                         ms, audio.length / (float)SAMPLE_RATE, SAMPLE_RATE));
                 });
             } catch (Throwable t) {
+                Log.e("KokoroTTS", "Synthesis failed", t);
                 runOnUiThread(() -> {
                     progress.setVisibility(View.GONE);
                     btnGenerate.setEnabled(true);
