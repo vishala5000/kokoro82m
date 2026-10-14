@@ -10,7 +10,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
+import java.nio.LongBuffer; // FIXED: Changed from IntBuffer to LongBuffer
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,8 +43,8 @@ public class KokoroEngine {
         // 1) Phonemize
         String phonemes = Phonemizer.phonemize(text, langCode);
 
-        // 2) Tokenize
-        int[] ids = tokenize(phonemes);
+        // 2) Tokenize (now returns long[] for int64 compatibility)
+        long[] ids = tokenize(phonemes);
         if (ids.length == 0) throw new IllegalStateException("Empty token sequence");
 
         // 3) Load voice embedding (exactly 256 floats)
@@ -55,7 +55,8 @@ public class KokoroEngine {
         long[] styleShape = {1, 256};
         long[] speedShape = {1};
 
-        OnnxTensor tIds   = OnnxTensor.createTensor(env, IntBuffer.wrap(ids), idsShape);
+        // FIXED: Use LongBuffer for int64 tensor
+        OnnxTensor tIds   = OnnxTensor.createTensor(env, LongBuffer.wrap(ids), idsShape);
         OnnxTensor tStyle = OnnxTensor.createTensor(env, FloatBuffer.wrap(style), styleShape);
         OnnxTensor tSpeed = OnnxTensor.createTensor(env, FloatBuffer.wrap(new float[]{speed}), speedShape);
 
@@ -91,7 +92,7 @@ public class KokoroEngine {
         byte[] bytes = readAll(new FileInputStream(f));
         FloatBuffer fb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
         
-        // FIXED: The voice file is a [510, 256] matrix. We only need the first 256 floats (row 0).
+        // The voice file is a [510, 256] matrix. We only need the first 256 floats (row 0).
         float[] v = new float[256];
         fb.get(v);
         
@@ -99,7 +100,8 @@ public class KokoroEngine {
         return v;
     }
 
-    private int[] tokenize(String phonemes) {
+    // FIXED: Changed return type from int[] to long[]
+    private long[] tokenize(String phonemes) {
         String vocab =
             "<pad><unk>" +
             "_!\"#$%&'()*+,-./0123456789:;<=>?@" +
@@ -121,7 +123,8 @@ public class KokoroEngine {
             i += Character.charCount(cp);
         }
         
-        int[] out = new int[phonemes.length()];
+        // FIXED: Use long[] array
+        long[] out = new long[phonemes.length()];
         for (int i = 0; i < phonemes.length(); i++) {
             char c = phonemes.charAt(i);
             out[i] = map.getOrDefault(c, 1); // 1 = <unk>
