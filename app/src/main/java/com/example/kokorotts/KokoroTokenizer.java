@@ -21,24 +21,23 @@ public class KokoroTokenizer {
 
     private final Map<Character, Integer> vocab = new HashMap<>();
     private int padTokenId = 0;  // '$' = 0
-    
+
     public KokoroTokenizer(Context ctx) throws Exception {
         File tokenizerFile = new File(ctx.getFilesDir(), "kokoro/tokenizer.json");
-        
+
         if (!tokenizerFile.exists()) {
             Log.d("KokoroTTS", "Copying tokenizer.json from assets...");
             copyAsset(ctx, "kokoro/tokenizer.json", tokenizerFile);
         }
-        
+
         if (!tokenizerFile.exists() || tokenizerFile.length() < 100) {
             throw new RuntimeException("tokenizer.json is missing or corrupted");
         }
-        
+
         Log.d("KokoroTTS", "Loading Kokoro tokenizer...");
         String jsonStr = readFile(tokenizerFile);
         JSONObject root = new JSONObject(jsonStr);
-        
-        // Load vocabulary (character -> ID)
+
         JSONObject vocabObj = root.getJSONObject("model").getJSONObject("vocab");
         for (java.util.Iterator<String> it = vocabObj.keys(); it.hasNext(); ) {
             String token = it.next();
@@ -48,27 +47,27 @@ public class KokoroTokenizer {
                 vocab.put(decoded.charAt(0), id);
             }
         }
-        
+
         Log.d("KokoroTTS", "Tokenizer loaded. Vocab size: " + vocab.size());
     }
 
     /**
      * Encode IPA phoneme string into token IDs.
      * Kokoro's real behavior:
-     *   1. Strip characters not in vocab
+     *   1. Strip characters not in vocab (normalizer)
      *   2. Map each character to its ID
-     *   3. Wrap with $ (ID 0) on both sides
+     *   3. Wrap with $ (ID 0) on both sides (post-processor)
      */
     public long[] encode(String text) {
         if (text == null || text.isEmpty()) {
             return new long[]{padTokenId};
         }
-        
+
         List<Long> ids = new ArrayList<>();
-        
-        // Leading $ (post-processor adds this)
+
+        // Leading $ (post-processor)
         ids.add((long) padTokenId);
-        
+
         // Map each character
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
@@ -78,15 +77,14 @@ public class KokoroTokenizer {
             }
             // Characters not in vocab are silently dropped (matches Kokoro's normalizer)
         }
-        
-        // Trailing $ (post-processor adds this)
+
+        // Trailing $ (post-processor)
         ids.add((long) padTokenId);
-        
+
         if (ids.size() <= 2) {
-            // Only the two $ tokens, nothing useful
             return new long[]{padTokenId};
         }
-        
+
         long[] result = new long[ids.size()];
         for (int i = 0; i < ids.size(); i++) {
             result[i] = ids.get(i);
