@@ -24,12 +24,10 @@ jobs:
       - name: Install build deps
         run: sudo apt-get update && sudo apt-get install -y p7zip-full wget unzip
 
-      - name: Download Kokoro-82M ONNX (fp16) + voices
+      - name: Download Kokoro-82M ONNX + voices
         run: |
           chmod +x scripts/download_model.sh
           ./scripts/download_model.sh
-
-      # --- espeak-ng download removed (handled by C++ fallback) ---
 
       - name: Generate debug keystore (no secrets needed)
         run: |
@@ -40,6 +38,19 @@ jobs:
             -storepass android -keypass android \
             -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, ST=Debug, C=US"
 
+      - name: Generate Gradle Wrapper (if missing)
+        run: |
+          if [ ! -f "./gradlew" ]; then
+            echo "gradlew not found, generating it..."
+            wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip
+            unzip -q gradle-8.5-bin.zip
+            ./gradle-8.5/bin/gradle wrapper --gradle-version 8.5
+            rm -rf gradle-8.5 gradle-8.5-bin.zip
+            echo "Gradle wrapper generated successfully!"
+          else
+            echo "gradlew already exists, skipping generation."
+          fi
+
       - name: Build APK
         run: ./gradlew assembleRelease --no-daemon
 
@@ -49,9 +60,12 @@ jobs:
           BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools | sort -V | tail -n 1)
           APK="app/build/outputs/apk/release/app-release-unsigned.apk"
           SIGNED="app/build/outputs/apk/release/KokoroTTS-signed.apk"
+          
+          # Fallback if gradle named it differently
           if [ ! -f "$APK" ]; then
-            APK=$(find app/build/outputs/apk -name "*.apk" | head -n1)
+            APK=$(find app/build/outputs/apk -name "*.apk" | grep -v "unaligned" | head -n1)
           fi
+          
           $ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner sign \
             --ks app/debug.keystore \
             --ks-pass pass:android \
