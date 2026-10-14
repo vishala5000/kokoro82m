@@ -1,6 +1,7 @@
 package com.example.kokorotts;
 
 import android.content.Context;
+import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -22,15 +23,35 @@ public class KokoroEngine {
 
     private final OrtEnvironment env = OrtEnvironment.getEnvironment();
     private final OrtSession session;
-    private final KokoroTokenizer tokenizer;
     private final Map<String, float[]> voiceCache = new HashMap<>();
     private final Context ctx;
+    
+    // EXACT Kokoro-82M vocabulary order
+    private static final String VOCAB = 
+        "<pad><unk>_" +
+        "!\"#$%&'()*+,-./0123456789:;<=>?@" +
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+        "[\\]^_`abcdefghijklmnopqrstuvwxyz" +
+        "{|}~" +
+        "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴ" +
+        "øɵɸɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑ" +
+        "ᴀʙƀƁƂƃɓɕʗʖ" +
+        "ʰʱʷʲʴʵʶˠˡˢˣˤᵻᵿ";
+
+    private static final Map<Character, Long> VOCAB_MAP = new HashMap<>();
+    
+    static {
+        int idx = 0;
+        for (int i = 0; i < VOCAB.length(); ) {
+            int cp = VOCAB.codePointAt(i);
+            VOCAB_MAP.put((char) cp, (long) idx++);
+            i += Character.charCount(cp);
+        }
+        Log.d("KokoroTTS", "Vocab loaded, size: " + VOCAB_MAP.size());
+    }
 
     public KokoroEngine(Context ctx) throws Exception {
         this.ctx = ctx.getApplicationContext();
-
-        // Initialize real BPE tokenizer
-        tokenizer = new KokoroTokenizer(ctx);
 
         OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
         opts.setIntraOpNumThreads(Math.max(2, Runtime.getRuntime().availableProcessors()));
@@ -41,17 +62,19 @@ public class KokoroEngine {
         if (!model.exists()) copyAsset("kokoro/model.onnx", model);
 
         session = env.createSession(model.getAbsolutePath(), opts);
+        Log.d("KokoroTTS", "Model loaded successfully");
     }
 
     public float[] synthesize(String text, String voiceId, String langCode, float speed) throws Exception {
-        // 1) Phonemize text to IPA
+        // 1) Phonemize to space-separated IPA
         String phonemes = Phonemizer.phonemize(text, langCode);
+        Log.d("KokoroTTS", "Phonemes: " + phonemes);
 
-        // 2) Tokenize with real BPE tokenizer (produces exact IDs model expects)
-        long[] ids = tokenizer.encode(phonemes);
+        // 2) Tokenize: split by space, map each token to ID
+        long[] ids = tokenize(phonemes);
         if (ids.length == 0) throw new IllegalStateException("Empty token sequence");
 
-        // 3) Load voice embedding (exactly 256 floats)
+        // 3) Load voice embedding
         float[] style = loadVoice(voiceId);
 
         // 4) Build ONNX inputs
@@ -85,6 +108,39 @@ public class KokoroEngine {
             tStyle.close();
             tSpeed.close();
         }
+    }
+
+    private long[] tokenize(String phonemes) {
+        String[] tokens = phonemes.split("\\s+");
+        long[] ids = new long[tokens.length];
+        for (int i = 0; i < tokens.length; i++) {
+            String token = tokens[i];
+            if (token.length() == 1) {
+                ids[i] = VOCAB_MAP.getOrDefault(token.charAt(0), 1L);
+            } else {
+                ids[i] = mapMultiChar(token);
+            }
+        }
+        return ids;
+    }
+
+    private long mapMultiChar(String token) {
+        if (token.equals("ʧ")) return VOCAB_MAP.getOrDefault('ʧ', 1L);
+        if (token.equals("ʤ")) return VOCAB_MAP.getOrDefault('ʤ', 1L);
+        if (token.equals("kʰ")) return VOCAB_MAP.getOrDefault('k', 1L);
+        if (token.equals("ɡʱ")) return VOCAB_MAP.getOrDefault('ɡ', 1L);
+        if (token.equals("t̪ʰ")) return VOCAB_MAP.getOrDefault('t', 1L);
+        if (token.equals("d̪ʱ")) return VOCAB_MAP.getOrDefault('d', 1L);
+        if (token.equals("t̪")) return VOCAB_MAP.getOrDefault('t', 1L);
+        if (token.equals("d̪")) return VOCAB_MAP.getOrDefault('d', 1L);
+        if (token.equals("ʧʰ")) return VOCAB_MAP.getOrDefault('ʧ', 1L);
+        if (token.equals("ʤʱ")) return VOCAB_MAP.getOrDefault('ʤ', 1L);
+        if (token.equals("ʈʰ")) return VOCAB_MAP.getOrDefault('ʈ', 1L);
+        if (token.equals("ɖʱ")) return VOCAB_MAP.getOrDefault('ɖ', 1L);
+        if (token.equals("pʰ")) return VOCAB_MAP.getOrDefault('p', 1L);
+        if (token.equals("bʱ")) return VOCAB_MAP.getOrDefault('b', 1L);
+        
+        return VOCAB_MAP.getOrDefault(token.charAt(0), 1L);
     }
 
     private synchronized float[] loadVoice(String id) throws Exception {
