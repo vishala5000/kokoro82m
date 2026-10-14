@@ -29,10 +29,7 @@ jobs:
           chmod +x scripts/download_model.sh
           ./scripts/download_model.sh
 
-      - name: Download espeak-ng data
-        run: |
-          chmod +x scripts/download_espeak.sh
-          ./scripts/download_espeak.sh
+      # --- espeak-ng download removed (handled by C++ fallback) ---
 
       - name: Generate debug keystore (no secrets needed)
         run: |
@@ -52,7 +49,6 @@ jobs:
           BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools | sort -V | tail -n 1)
           APK="app/build/outputs/apk/release/app-release-unsigned.apk"
           SIGNED="app/build/outputs/apk/release/KokoroTTS-signed.apk"
-          # If gradle already produced a signed one, use it; else sign the unsigned one
           if [ ! -f "$APK" ]; then
             APK=$(find app/build/outputs/apk -name "*.apk" | head -n1)
           fi
