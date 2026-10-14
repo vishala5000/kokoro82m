@@ -1,6 +1,7 @@
 package com.example.kokorotts;
 
 import android.content.Context;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -32,27 +33,40 @@ public class KokoroTokenizer {
 
     public KokoroTokenizer(Context ctx) throws Exception {
         File tokenizerFile = new File(ctx.getFilesDir(), "kokoro/tokenizer.json");
+        
+        // FIXED: Robust asset copying with explicit error checking
         if (!tokenizerFile.exists()) {
-            copyAsset(ctx, "tokenizer.json", tokenizerFile);
+            Log.d("KokoroTTS", "Tokenizer not in internal storage, copying from assets...");
+            copyAsset(ctx, "kokoro/tokenizer.json", tokenizerFile);
         }
         
+        if (!tokenizerFile.exists() || tokenizerFile.length() == 0) {
+            throw new RuntimeException("tokenizer.json is missing or empty in assets. Did you add it to your GitHub Release?");
+        }
+        
+        Log.d("KokoroTTS", "Loading tokenizer from: " + tokenizerFile.getAbsolutePath() + " (Size: " + tokenizerFile.length() + " bytes)");
         String jsonStr = readFile(tokenizerFile);
-        JSONObject root = new JSONObject(jsonStr);
         
-        JSONObject modelObj = root.getJSONObject("model");
-        JSONObject vocabObj = modelObj.getJSONObject("vocab");
-        
-        for (java.util.Iterator<String> it = vocabObj.keys(); it.hasNext(); ) {
-            String token = it.next();
-            String decodedToken = decodeToken(token);
-            int id = vocabObj.getInt(token);
-            vocab.put(decodedToken, id);
-        }
-        
-        JSONArray mergesArray = modelObj.getJSONArray("merges");
-        for (int i = 0; i < mergesArray.length(); i++) {
-            String merge = mergesArray.getString(i);
-            mergeRanks.put(merge, i);
+        try {
+            JSONObject root = new JSONObject(jsonStr);
+            JSONObject modelObj = root.getJSONObject("model");
+            JSONObject vocabObj = modelObj.getJSONObject("vocab");
+            
+            for (java.util.Iterator<String> it = vocabObj.keys(); it.hasNext(); ) {
+                String token = it.next();
+                String decodedToken = decodeToken(token);
+                int id = vocabObj.getInt(token);
+                vocab.put(decodedToken, id);
+            }
+            
+            JSONArray mergesArray = modelObj.getJSONArray("merges");
+            for (int i = 0; i < mergesArray.length(); i++) {
+                String merge = mergesArray.getString(i);
+                mergeRanks.put(merge, i);
+            }
+            Log.d("KokoroTTS", "Tokenizer loaded successfully. Vocab size: " + vocab.size());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse tokenizer.json. It may be corrupted or an HTML error page. Error: " + e.getMessage(), e);
         }
     }
 
@@ -142,7 +156,6 @@ public class KokoroTokenizer {
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < token.length(); i++) {
             char c = token.charAt(i);
-            // Fixed: Changed comment to avoid Java unicode escape parsing error
             if (c == '\\' && i + 1 < token.length() && token.charAt(i + 1) == 'u') {
                 if (i + 5 < token.length()) {
                     String hex = token.substring(i + 2, i + 6);
