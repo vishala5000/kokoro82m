@@ -20,14 +20,16 @@ else
     exit 1
 fi
 
-echo "[*] Installing lightweight PyTorch for voice conversion..."
-pip install torch --index-url https://download.pytorch.org/whl/cpu -q
+echo "[*] Installing lightweight PyTorch and NumPy for voice conversion..."
+pip install torch numpy --index-url https://download.pytorch.org/whl/cpu -q
 
 echo "[*] Converting am_adam voice to raw 256-float binary..."
 curl -L -f -o "/tmp/am_adam.pt" "${BASE_URL}/am_adam.bin"
 python3 -c "
 import torch
-data = torch.load('/tmp/am_adam.pt', map_location='cpu', weights_only=True)
+import numpy as np
+# FIXED: Explicitly set weights_only=False to bypass PyTorch 2.6 safe unpickler restriction
+data = torch.load('/tmp/am_adam.pt', map_location='cpu', weights_only=False)
 if isinstance(data, dict): data = next(iter(data.values()))
 data.float().flatten()[:256].cpu().numpy().tofile('$ASSETS/voices/am_adam.bin')
 print('✓ am_adam converted successfully (exactly 256 floats)')
@@ -37,12 +39,14 @@ echo "[*] Converting hm_omega voice to raw 256-float binary..."
 curl -L -f -o "/tmp/hm_omega.pt" "${BASE_URL}/hm_omega.bin"
 python3 -c "
 import torch
-data = torch.load('/tmp/hm_omega.pt', map_location='cpu', weights_only=True)
+import numpy as np
+# FIXED: Explicitly set weights_only=False to bypass PyTorch 2.6 safe unpickler restriction
+data = torch.load('/tmp/hm_omega.pt', map_location='cpu', weights_only=False)
 if isinstance(data, dict): data = next(iter(data.values()))
 data.float().flatten()[:256].cpu().numpy().tofile('$ASSETS/voices/hm_omega.bin')
 print('✓ hm_omega converted successfully (exactly 256 floats)')
 "
 
 echo "[✓] All downloads and conversions complete!"
-echo "Voice file sizes (should be exactly 1.0K each):"
+echo "Voice file sizes (should be exactly 1.0K / 1024 bytes each):"
 ls -lh "$ASSETS/voices"
