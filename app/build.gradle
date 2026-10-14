@@ -1,1 +1,68 @@
+plugins { id 'com.android.application' }
 
+android {
+    namespace 'com.example.kokorotts'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.kokorotts"
+        minSdk 24          // Android 7+ → covers ~99% of smartphones
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+    }
+
+    // Auto-sign with generated debug keystore (no secrets)
+    signingConfigs {
+        debug {
+            storeFile file("debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+        release {
+            storeFile file("debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                          'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/jni/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    // Kokoro model is large — don't compress so ONNX can mmap it
+    aaptOptions { noCompress "onnx", "bin" }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // ONNX Runtime Mobile — optimized for CPU, small footprint
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.17.0'
+}
