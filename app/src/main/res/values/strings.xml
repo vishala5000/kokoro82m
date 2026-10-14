@@ -1,1 +1,7 @@
-
+<resources>
+    <string name="app_name">Kokoro TTS</string>
+    <string-array name="voices">
+        <item>am_adam — English (US) Male</item>
+        <item>hm_omega — Hindi Male</item>
+    </string-array>
+</resources>
