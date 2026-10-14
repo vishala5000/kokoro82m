@@ -5,7 +5,7 @@ import android.content.Context;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream; // FIXED: Added missing import
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -66,7 +66,6 @@ public class KokoroEngine {
 
         // 5) Run inference
         try (OrtSession.Result res = session.run(inputs)) {
-            // FIXED: Safely handle 2D or 3D output arrays from ONNX Runtime
             Object val = res.get(0).getValue();
             float[] pcm;
             if (val instanceof float[][][]) {
@@ -92,9 +91,8 @@ public class KokoroEngine {
         byte[] bytes = readAll(new FileInputStream(f));
         FloatBuffer fb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
         
-        // SAFETY CHECK: Ensure we only read exactly 256 floats
-        int elementsToRead = Math.min(256, fb.remaining());
-        float[] v = new float[elementsToRead];
+        // FIXED: The voice file is a [510, 256] matrix. We only need the first 256 floats (row 0).
+        float[] v = new float[256];
         fb.get(v);
         
         voiceCache.put(id, v);
@@ -134,7 +132,7 @@ public class KokoroEngine {
     private void copyAsset(String asset, File dst) throws Exception {
         dst.getParentFile().mkdirs();
         try (InputStream is = ctx.getAssets().open(asset);
-             FileOutputStream os = new FileOutputStream(dst)) { // NOW WORKS PERFECTLY
+             FileOutputStream os = new FileOutputStream(dst)) {
             byte[] buf = new byte[64 * 1024];
             int n;
             while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
