@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Your exact GitHub release details
 GITHUB_USER="vishala5000"
 GITHUB_REPO="kokoro82m"
 RELEASE_TAG="kokoro"
@@ -20,13 +19,17 @@ else
     exit 1
 fi
 
-echo "[*] Downloading voices (already raw binary, no conversion needed)..."
+echo "[*] Downloading voices..."
 curl -L -f -o "$ASSETS/voices/am_adam.bin" "${BASE_URL}/am_adam.bin"
 echo "✓ Downloaded am_adam.bin"
 
 curl -L -f -o "$ASSETS/voices/hm_omega.bin" "${BASE_URL}/hm_omega.bin"
 echo "✓ Downloaded hm_omega.bin"
 
+echo "[*] Downloading tokenizer.json..."
+curl -L -f -o "$ASSETS/tokenizer.json" "${BASE_URL}/tokenizer.json"
+echo "✓ Downloaded tokenizer.json"
+
 echo "[✓] All downloads complete!"
-echo "Voice file sizes (should be ~510K each, containing 510x256 floats):"
+ls -lh "$ASSETS"
 ls -lh "$ASSETS/voices"
